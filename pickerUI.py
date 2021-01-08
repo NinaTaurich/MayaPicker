@@ -58,60 +58,85 @@ class pickerBaseUI(QtWidgets.QDialog):
         #get rid of help button on window
         self.setWindowFlags(self.windowFlags()^QtCore.Qt.WindowContextHelpButtonHint)
 
-        self.objects = {}
-        self.buttons = []
+        self.objects = {} #dictionary of objects in scene and what buttons they are connected to. They are separated by each tab. key- object name, value- array of buttons
+        self.buttons = [] #list of references to buttons according to tab
         self.previousSelection = cmds.ls(sl=True)
-        self.totalTabs = 0
+        self.totalTabs = 0 #numbere of tabs
 
         self.buildUI()
         self.sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateBtnSelect()], parent = "PickerUI")
         self.show()
 
-    def keyPressEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Backspace or event.key() == QtCore.Qt.Key_Delete:
-            print("Killing")
+    # def keyPressEvent(self, event):
+    #     """
+    #     deletes selected buttons when backspace or delete key is pressed in edit mode
+    #     :param event:
+    #     :return: None
+    #     """
+    #     if self.edit and (event.key() == QtCore.Qt.Key_Backspace or event.key() == QtCore.Qt.Key_Delete):
+    #         print("Deleting Selected Buttons")
+    #         i = self.tabwidget.currentIndex()
+    #         children =self.tabwidget.widget(i).children()
+    #         for btn in children: #for each button in the current tab
+    #             if (isinstance(btn,drag.DragButton)) and btn.selected == True: #check if selected
+    #                 for k in self.objects.keys(): #remove from objects dictionary
+    #                     if btn in self.objects[k]:
+    #                         self.objects[k].remove(btn)
+    #                 print("deleting: "+ str(btn))
+    #                 btn.deleteLater()
+    def deleteBtns(self):
+        if self.edit:
+            print("Deleting Selected Buttons")
             i = self.tabwidget.currentIndex()
             children =self.tabwidget.widget(i).children()
-            for btn in children:
-                if (isinstance(btn,drag.DragButton)) and btn.selected == True:
-                    for k in self.objects.keys():
-                        if btn in self.objects[k]:
-                            print("remove")
-                            self.objects[k].remove(btn)
+            i+=1
+            for btn in children: #for each button in the current tab
+                if (isinstance(btn,drag.DragButton)) and btn.selected == True: #check if selected
+                    for k in self.objects[i].keys(): #remove from objects dictionary
+                        if btn in self.objects[i][k]:
+                            self.objects[i][k].remove(btn)
+                        if len(self.objects[i][k]) ==0:
+                            del(self.objects[i][k])
+                    print(self.objects)
+                    print("deleting: "+ str(btn))
                     btn.deleteLater()
 
     def updateBtnSelect(self):
+        """
+        updates outline of buttons if objects they are connected to have been selected or deselected
+        :return: None
+        """
         print("update buttons")
         currSelection = cmds.ls(selection = True)
         currTab = self.tabwidget.currentIndex()+1
 
-        minus = []
-        added = []
+        minus = [] #list of objects deselected
+        added = [] #list of objects added to selection
 
         for i in self.previousSelection:
-            if i not in currSelection:
-                minus.append(i)
+            if i not in currSelection: #object has been deselected
+                minus.append(i) #add to deselected list
         for j in currSelection:
-            if j not in self.previousSelection:
+            if j not in self.previousSelection: #object has been added to selection
                 added.append(j)
 
         for a in added:
-            print("added"+a)
+            print("added "+a)
+            #add one to the
             if a in self.objects[currTab]:
                 for btn in self.objects[currTab][a]:
-                    btn.numSel+=1
-                    print(btn.numSel)
-                    if btn.numSel == len(btn.connection):
+                    btn.numSel+=1 #add one to the number of objects selected in the list of connections for the button
+                    if btn.numSel == len(btn.connection): #change outline if the number selected is equal to the total number of objects connected to the button
                         btn.selected = True
                         btn.setChecked(True)
 
         for m in minus:
-            print("minus"+m)
+            print("minus "+m)
             if m in self.objects[currTab]:
                 for btn in self.objects[currTab][m]:
-                    btn.numSel-=1
+                    btn.numSel-=1 #subtract one to the number of objects selected in the list of connections for the button
                     print(btn.numSel)
-                    if btn.numSel < len(btn.connection):
+                    if btn.numSel < len(btn.connection): #change outline if the number selected is less than the total number of objects connected to the button
                         btn.selected = False
                         btn.setChecked(False)
 
@@ -120,20 +145,25 @@ class pickerBaseUI(QtWidgets.QDialog):
 
         if(self.edit ==True):
             print("checkboxes")
-            self.clearLayout(self.vbox)
-            sl = cmds.ls(sl = True)
-            for obj in sl:
+            #updates the list of checkboxes
+            self.clearLayout(self.vbox) #clear list
+            sl = cmds.ls(sl = True) #get selection
+            for obj in sl: #add a checkbox for each object in selection
                 checkbox = QtWidgets.QCheckBox(obj)
                 checkbox.setChecked(True)
                 checkbox.stateChanged.connect(lambda state, o=obj, c=checkbox: self.state_changed(o, c))
-                self.vbox.addWidget(checkbox)
+                self.vbox.addWidget(checkbox) #add to layout
 
     def updateTabBtns(self):
+        """
+        called when tab is changed and updates button outlines of new current tab
+        :return: None
+        """
         index = self.tabwidget.currentIndex()
         children = self.tabwidget.widget(index).children()
         for c in children:
             if (isinstance(c,drag.DragButton)):
-                c.updateNumSel()
+                c.updateNumSel() #update outline of button
 
     def buildUI(self):
         outside = QtWidgets.QVBoxLayout(self)
@@ -150,7 +180,7 @@ class pickerBaseUI(QtWidgets.QDialog):
         #tab widget
         self.tabwidget = QtWidgets.QTabWidget(tabsClosable = True, movable = True)
         self.layout.addWidget(self.tabwidget)
-        self.tabwidget.tabCloseRequested.connect(lambda index: self.tabwidget.removeTab(index))
+        self.tabwidget.tabCloseRequested.connect(lambda index: self.closeTab(index))
         self.tabwidget.currentChanged.connect(lambda index: self.updateTabBtns())
         #add base tab
         #self.tabwidget.addTab(imageTab(img = ""), "Untitled")
@@ -177,16 +207,13 @@ class pickerBaseUI(QtWidgets.QDialog):
         loadBtn.clicked.connect(self.load)
         layout_btns.addWidget(loadBtn)
 
-        # #close button
-        # closeBtn = QtWidgets.QPushButton('Close')
-        # closeBtn.clicked.connect(self.close)
-        # layout_btns.addWidget(closeBtn)
+        #close button
+        closeBtn = QtWidgets.QPushButton('Close')
+        closeBtn.clicked.connect(self.close)
+        layout_btns.addWidget(closeBtn)
 
         outside.addLayout(layout_btns) #add buttons to layout
 
-    def closeWindow(self):
-        self.close()
-        cmds.scriptJob(kill= self.sj)
 
     def save(self):
         data = {'tabs':{}}
@@ -224,11 +251,12 @@ class pickerBaseUI(QtWidgets.QDialog):
             print(data)
             for tab in data["tabs"]:
                 tabInfo = data["tabs"][tab]
-                newTab = imageTab(img = tabInfo["image"])
-                self.tabwidget.addTab(newTab,tabInfo["name"])
+                #newTab = imageTab(img = tabInfo["image"])
+                newTab =self.newTab(tabInfo["name"], image = tabInfo["image"])
+                #self.tabwidget.addTab(newTab,tabInfo["name"])
                 for btn in tabInfo["buttons"]:
                     btnInfo = tabInfo["buttons"][btn]
-                    newbtn = self.newDragBtn(btnInfo["color"], btnInfo["connections"],btnInfo["name"], newTab, btnInfo["width"], btnInfo["height"])
+                    newbtn = self.newDragBtn(btnInfo["color"], btnInfo["connections"],btnInfo["name"], newTab, btnInfo["width"], btnInfo["height"],self.totalTabs)
                     newbtn.move(btnInfo["x"],btnInfo["y"])
 
 
@@ -335,6 +363,12 @@ class pickerBaseUI(QtWidgets.QDialog):
             NewBtn.clicked.connect(lambda: self.newConnection())
             self.details_layout.addWidget(NewBtn)
 
+            #create new button button
+            DelBtn = QtWidgets.QPushButton("Delete Buttons",self)
+            DelBtn.clicked.connect(lambda: self.deleteBtns())
+            self.details_layout.addWidget(DelBtn)
+
+            self.details_layout.addSpacing(20)
             self.details_layout.addStretch()
 
 
@@ -357,7 +391,7 @@ class pickerBaseUI(QtWidgets.QDialog):
 
             #button to choose image
             PictureBtn = QtWidgets.QPushButton("Choose Picture", self)
-            PictureBtn.clicked.connect(self.importImg)
+            PictureBtn.clicked.connect(self.tabwidget.currentWidget().importImg)
             self.details_layout.addWidget(PictureBtn)
             self.details_layout.addStretch()
 
@@ -372,6 +406,42 @@ class pickerBaseUI(QtWidgets.QDialog):
         self.objects[self.totalTabs]= {}
         return newT
 
+    def closeTab(self, index):
+        currTabIndex = index +1 #self.tabwidget.currentIndex()+1
+        print("trying to close tab: "+ str(currTabIndex))
+        #self.objects[currTabIndex]
+        print("deleting")
+        print(self.objects)
+        print(self.objects[currTabIndex])
+        print("total tabs: "+ str(self.totalTabs))
+        for i in range(currTabIndex, self.totalTabs+1):
+            print(i)
+            if(i == self.totalTabs):
+                #delete last one
+                print("last one")
+                self.objects.pop(i)
+            else:
+                self.objects[i]= self.objects[i+1]
+        print("end objects list:")
+        print(self.objects)
+        self.tabwidget.removeTab(index)
+        self.totalTabs -=1
+
+
+    def __renameTab(self):
+        tabname = self.tabnameBox.text()
+        tabIndex = self.tabwidget.currentIndex()
+        self.tabwidget.setTabText(tabIndex, tabname)
+
+    def tabReorder(self,fromTab, toTab):
+        print("from: "+ fromTab, "to: "+ toTab)
+        new =self.objects[fromTab]
+        old= self.objects[toTab]
+        for i in range(toTab, self.totalTabs +1):
+            self.objects[i] = new
+            new = self.objects[i+1]
+            self.objects[i+1] = old
+
     def state_changed(self, obj, box):
         #print(box.isChecked())
         if(box.isChecked()==False):
@@ -379,14 +449,6 @@ class pickerBaseUI(QtWidgets.QDialog):
             cmds.select(obj, d=True)
         else:
             print("%s is checked" % obj)
-
-    def importImg(self): #open file dialogue
-        tab = self.tabwidget.currentWidget()
-        file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file',
-   'c:\\',"Image files (*.jpg *.gif *.png)")
-        print(file)
-        tab.image.setPixmap(QtGui.QPixmap(file))
-
 
     def newConnection(self, btnParent = None):
         selected = cmds.ls(selection = True)
@@ -399,50 +461,31 @@ class pickerBaseUI(QtWidgets.QDialog):
 
         btnColor = self.color.currentText()
         btnName = self.nameBox.text()
-        return self.newDragBtn(btnColor, selected, btnName, parent, self.btnWidth.value(), self.btnHeight.value())
-
-        # # setName = False
-        # # objName = btnName
-        # # i = 1
-        # # while(not setName):
-        # #     if objName+str(i) in self.buttons:
-        # #         #objName = objName+str(i)
-        # #         i+=1
-        # #     else:
-        # #         objName = objName+str(i)
-        # #         btn.setObjectName(objName)
-        # #         setName = True
-        # #         self.buttons.append(objName)
+        return self.newDragBtn(btnColor, selected, btnName, parent, self.btnWidth.value(), self.btnHeight.value(), self.tabwidget.currentIndex()+1)
 
 
-    def newDragBtn(self, color, selected, name, parent, width, height):
+    def newDragBtn(self, color, selected, name, parent, width, height, tabIndex):
         btn = drag.DragButton(color, selected, name ) #create new draggable button
         btn.setParent(parent)
         btn.resize(width, height)
         btn.show()
         print("new button: %s" % name)
-        currTab = self.tabwidget.currentIndex()+1
 
         self.buttons.append(btn)
         print(self.buttons)
 
         if selected != None:
             for i in selected:
-                if(i in self.objects[currTab]):
-                    self.objects[currTab][str(i)].append(btn)
+                if(i in self.objects[tabIndex]):
+                    self.objects[tabIndex][str(i)].append(btn)
                 else:
-                    self.objects[currTab][str(i)]=[btn]
+                    self.objects[tabIndex][str(i)]=[btn]
             print(self.objects)
         else:
-            print("selected is None")
-
+            print("nothing is being connected to button")
 
         return btn
 
-    def __renameTab(self):
-        tabname = self.tabnameBox.text()
-        tabIndex = self.tabwidget.currentIndex()
-        self.tabwidget.setTabText(tabIndex, tabname)
 
 
 class imageTab(QtWidgets.QWidget):
@@ -457,6 +500,14 @@ class imageTab(QtWidgets.QWidget):
             self.imageFile = img
         self.image = QtWidgets.QLabel(self)
         self.image.setPixmap(QtGui.QPixmap(self.imageFile))
+
+    def importImg(self):
+        file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file',
+   'c:\\',"Image files (*.jpg *.gif *.png)")
+        print(file)
+        self.imageFile = file
+        self.image.setPixmap(QtGui.QPixmap(file))
+        self.image.adjustSize()
 
 
 

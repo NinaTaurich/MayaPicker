@@ -6,17 +6,9 @@ class DragButton(QtWidgets.QPushButton):
         super(DragButton,self).__init__(*args, **kwargs)
         self.setCheckable(True)
 
-
         self.connection = selection
         self.numSel=0
-        for s in cmds.ls(sl=True):
-            self.numSel +=1
-        if(self.numSel==len(selection)):
-            self.selected = True
-            self.setChecked(True)
-        else:
-            self.selected = False
-            self.setChecked(False)
+        self.updateNumSel()
 
         self.clicked.connect(self.selectList) #select objects when clicked
         self.color = color
@@ -26,15 +18,18 @@ class DragButton(QtWidgets.QPushButton):
     def updateNumSel(self):
         currSel =cmds.ls(sl=True)
         self.numSel =0
+
+        self.selected = False
+
         for o in self.connection:
             if o in currSel:
                 self.numSel+=1
             if(self.numSel==len(self.connection)):
                 self.selected = True
                 self.setChecked(True)
-            else:
-                self.selected = False
-                self.setChecked(False)
+                break
+        if(not self.selected):
+            self.setChecked(False)
 
     def setColor(self, newColor):
         #set color of button
@@ -67,9 +62,7 @@ class DragButton(QtWidgets.QPushButton):
             self.selected=False
             for obj in self.connection:
                 cmds.select(obj, deselect= True)
-        # print(self.isChecked())
-        # for obj in self.connection:
-        #     cmds.select(obj)
+
 
     def mousePressEvent(self, event):
         self.__mousePressPos = None

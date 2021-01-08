@@ -6,16 +6,20 @@ class DragButton(QtWidgets.QPushButton):
         super(DragButton,self).__init__(*args, **kwargs)
         self.setCheckable(True)
 
-        self.connection = selection
-        self.numSel=0
-        self.updateNumSel()
+        self.connection = selection #list of objects
+        self.numSel=0 #number of objects in list selected in the world
+        self.updateNumSel()  #update numSel based on objects selected in world
 
         self.clicked.connect(self.selectList) #select objects when clicked
-        self.color = color
+        self.color = color #button color
 
-        self.setColor(color)
+        self.setColor(color) #set the color of the button
 
     def updateNumSel(self):
+        """
+        updates numSel variable
+        :return: None
+        """
         currSel =cmds.ls(sl=True)
         self.numSel =0
 
@@ -32,6 +36,11 @@ class DragButton(QtWidgets.QPushButton):
             self.setChecked(False)
 
     def setColor(self, newColor):
+        """
+        Set color of button
+        :param newColor: (str) color of button
+        :return: None
+        """
         #set color of button
         if newColor == "Red":
             self.setStyleSheet("QPushButton{background-color: red; border: 1px solid black}" 
@@ -44,23 +53,27 @@ class DragButton(QtWidgets.QPushButton):
                                "QPushButton:checked{background-color: green; border: 1px solid white}")
 
     def selectList(self):
+        """
+        select objects in list
+        :return: None
+        """
         print("select!")
         add = False
 
-        if(cmds.getModifiers()==1):
+        if(cmds.getModifiers()==1): #add to selection if shift is pressed
             print("shift")
             add = True
         if(self.selected==False):
-            self.setChecked(True)
+            self.setChecked(True) #set white outline
             self.selected=True
             if(add == False): #deselect everything
                     cmds.select(self.connection[0])
-            for obj in self.connection:
+            for obj in self.connection: #select objects in list
                 cmds.select(obj, add = True)
         else:
-            self.setChecked(False)
+            self.setChecked(False) #set black outline
             self.selected=False
-            for obj in self.connection:
+            for obj in self.connection: #add objects to world selection
                 cmds.select(obj, deselect= True)
 
 

@@ -1,11 +1,14 @@
 Created By: Nina Taurich
 
+
 Setup:
 1.download picker and place folder in maya scripts folder
 
 2.In Maya script editor run python code:
 import picker
 picker.load()
+
+Demo Video: https://www.youtube.com/watch?v=0LSDkv1S84g&feature=emb_logo
 
 
 Dependencies:

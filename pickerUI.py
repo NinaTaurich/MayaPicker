@@ -5,12 +5,13 @@ from shiboken2 import wrapInstance
 import pymel.core as pm
 import os
 import json
+from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
 from picker import dragButton as drag
-reload(drag)
 
 # Where is this script?
 SCRIPT_LOC = os.path.split(__file__)[0]
+BASE_DIR = "C:/Users/ninat/Documents/Python and Pipelines"
 
 def getMayaMainWindow():
     """
@@ -20,26 +21,12 @@ def getMayaMainWindow():
     ptr = wrapInstance(long(win), QtWidgets.QMainWindow)
     return ptr
 
-#TODO: save and load
-    #save width and height
-    #error if image doesn't exist
-    #dont delete previous when loading
-    #save pic in same file
-    #or save as zip
-    #add environmental parameter
-#TODO: channel boxes
-#TODO: preview of button
-#TODO: delete buttons
-#TODO: show selection when creating button
-    #ability to deselect
-#TODO: drag select
-#TODO: make dockable
-#TODO: tabs
-    #center image
-    #when no tabs have a create tab msg
+def deleteControl(control):
+    if cmds.workspaceControl(control, q=True, exists=True):
+        cmds.workspaceControl(control,e=True, close=True)
+        cmds.deleteUI(control,control=True)
 
-
-class pickerBaseUI(QtWidgets.QDialog):
+class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     def __init__(self, parent = getMayaMainWindow()):
         #ensure not more than one at the same time
         try:
@@ -48,6 +35,7 @@ class pickerBaseUI(QtWidgets.QDialog):
         except:
             print("no prev UI")
 
+        deleteControl("PickerUIWorkspaceControl")
         super(pickerBaseUI, self).__init__(parent)
 
         self.setWindowTitle("Picker UI") #set title
@@ -65,7 +53,7 @@ class pickerBaseUI(QtWidgets.QDialog):
 
         self.buildUI()
         self.sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateBtnSelect()], parent = "PickerUI")
-        self.show()
+        self.show(dockable=True)
 
     def keyPressEvent(self, event):
         """
@@ -231,7 +219,7 @@ class pickerBaseUI(QtWidgets.QDialog):
                     btnNum+=1
         outData = json.dumps(data) #create into json
         print(outData)
-        filename, type = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Template','c:\\',"(*.json)") #open file dialog to chose location and name
+        filename, type = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Template',BASE_DIR,"(*.json)") #open file dialog to chose location and name
         print("saving as: " +filename)
         with open(filename, "w") as f:
             json.dump(data, f, indent = 4) #save json in location
@@ -243,7 +231,7 @@ class pickerBaseUI(QtWidgets.QDialog):
         """
         print("Loading File!!!!!!!!!!!")
         file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file',
-   'c:\\',"Template Files(*.json)") #creates file dialog
+   BASE_DIR,"Template Files(*.json)") #creates file dialog
         with open(file) as template_json:
             data = json.load(template_json) #json template data
             print(data)
@@ -515,13 +503,13 @@ class pickerBaseUI(QtWidgets.QDialog):
 class imageTab(QtWidgets.QWidget):
     def __init__(self, img = None, *args, **kwargs):
         super(imageTab,self).__init__(*args, **kwargs)
-        if(img == None):
-            file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Image',
-       'c:\\',"Image files (*.jpg *.gif *.png)") #file dialog to choose image
-            print(file)
-            self.imageFile = file
-        else:
-            self.imageFile = img
+       #  if(img == None):
+       #      file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Image',
+       # BASE_DIR,"Image files (*.jpg *.gif *.png)") #file dialog to choose image
+       #      print(file)
+       #      self.imageFile = file
+       #  else:
+        self.imageFile = img
         #set image
         self.image = QtWidgets.QLabel(self)
         self.image.setPixmap(QtGui.QPixmap(self.imageFile))
@@ -532,7 +520,7 @@ class imageTab(QtWidgets.QWidget):
         :return: None
         """
         file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Image',
-   'c:\\',"Image files (*.jpg *.gif *.png)")
+   BASE_DIR,"Image files (*.jpg *.gif *.png)")
         print(file)
         self.imageFile = file
         self.image.setPixmap(QtGui.QPixmap(file))

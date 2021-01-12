@@ -1,11 +1,11 @@
 Created By: Nina Taurich
 
 Setup:
-download picker and place folder in maya/scripts folder
+1.download picker and place folder in maya scripts folder
 
-2.In Maya run code:
-from picker import pickerUI
-pickerUI.pickerBaseUI()
+2.In Maya script editor run python code:
+import picker
+picker.load()
 
 
 Dependencies:

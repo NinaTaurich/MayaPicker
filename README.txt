@@ -2,11 +2,11 @@ Created By: Nina Taurich
 
 
 Setup:
-1.download picker and place folder in maya scripts folder
+1.download picker and place anim_picker folder in maya scripts folder
 
 2.In Maya script editor run python code:
-import picker
-picker.load()
+import anim_picker
+anim_picker.load()
 
 Demo Video: https://www.youtube.com/watch?v=0LSDkv1S84g&feature=emb_logo
 

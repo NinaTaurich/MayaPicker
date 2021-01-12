@@ -7,7 +7,7 @@ import os
 import json
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
-from picker import dragButton as drag
+from picker.anim_picker import dragButton as drag
 
 # Where is this script?
 SCRIPT_LOC = os.path.split(__file__)[0]

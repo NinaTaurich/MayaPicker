@@ -1,20 +1,23 @@
 Created By: Nina Taurich
 
 
-Setup:
-- download picker and place anim_picker folder in maya scripts folder
-- In Maya script editor run python code:
-import anim_picker
-anim_picker.load()
+## Setup:
+1. download picker and place MayaPicker folder in maya scripts folder
+2. In Maya script editor run python code:
+```python
+import MayaPicker.anim_picker
+MayaPicker.anim_picker.load()
+```
 
-Demo Video: https://www.youtube.com/watch?v=0LSDkv1S84g&feature=emb_logo
+## Demo Video: 
+https://www.youtube.com/watch?v=0LSDkv1S84g&feature=emb_logo
 
 
-Dependencies:
+## Dependencies:
 Maya and PySide2
 
 
-Features:
+## Features:
 - Add buttons with varying size, color, and text
 - A list of check-boxes shows the current world selection allowing the user to easily deselect objects by unchecking them
 - Ability to delete buttons

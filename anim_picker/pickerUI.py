@@ -11,7 +11,7 @@ from MayaPicker.anim_picker import dragButton as drag
 
 # Where is this script?
 SCRIPT_LOC = os.path.split(__file__)[0]
-BASE_DIR = "C:/Users/ninat/Documents/Python and Pipelines"
+BASE_DIR = "C:/"
 
 def getMayaMainWindow():
     """

@@ -5,13 +5,20 @@ from shiboken2 import wrapInstance
 import pymel.core as pm
 import os
 import json
+import logging
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
 from MayaPicker.anim_picker import dragButton as drag
+reload(drag)
+
+logging.basicConfig()
+logger = logging.getLogger("picker")
+logger.setLevel(logging.INFO)
 
 # Where is this script?
 SCRIPT_LOC = os.path.split(__file__)[0]
 BASE_DIR = "C:/"
+# BASE_DIR = "C:/Users/ninat/Documents/Python and Pipelines"
 
 def getMayaMainWindow():
     """
@@ -27,13 +34,66 @@ def deleteControl(control):
         cmds.deleteUI(control,control=True)
 
 class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
+    """
+    a class that creates a dockable qt character picker window
+    Attributes
+    -----------
+    objects:
+    buttons: dragButton[]
+        array of references to buttons according to tab
+    previousSelection: Str[]
+        array of last selection of objects in scene
+    totalTabs: Int
+        total number of tabs
+    sj
+        script job
+    edit: boolean
+
+    Methods
+    -----------------
+    init(parent = getMayaMainWindow())
+    keyPressEvent(event)
+        deletes selected buttons when backspace or delete key is pressed in edit mode
+    deleteBtns()
+        deletes selected buttons
+    updateBtnSelect()
+        updates outline of buttons if objects they are connected to have been selected or deselected and checkboxes
+    updateTabBtns()
+        called when tab is changed and updates button outlines of new current tab
+    buildUI()
+        adds UI elements to window
+    save()
+        saves current picker layout to a json file. Creates a popup for user to choose name and place of file
+    load()
+        Opens File Dialog and loads chosen template (json) by adding tabs specified in json
+    editChange()
+        Changes mode of the picker between editing and not editing. Changes edit column and edit button text based on the current mode
+    clearLayout(layout)
+        clear all layouts and widgets in given layout
+    updateDetails(type)
+        updates details based on mode
+    setTabImage()
+    newTab(name, image)
+        Add new tab to picker with given name and image
+    closeTab(index)
+    renameTab()
+        renames current tab to be current text in name box
+    state_changed(obj,box)
+        deselects object when checkbox is unchecked
+    newConnection(btnParent = None)
+        creates new draggable button connected to current selection and add it to tab
+    newDragBtn(color, selected, name, parent, width, height, tabIndex)
+        create new draggable button and add to parent
+
+
+    """
     def __init__(self, parent = getMayaMainWindow()):
         #ensure not more than one at the same time
         try:
             pm.deleteUI('PickerUI')
-            print("delete UI")
+            logger.debug("delete UI")
         except:
-            print("no prev UI")
+            logger.debug("no prev UI")
 
         deleteControl("PickerUIWorkspaceControl")
         super(pickerBaseUI, self).__init__(parent)
@@ -47,12 +107,16 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.setWindowFlags(self.windowFlags()^QtCore.Qt.WindowContextHelpButtonHint)
 
         self.objects = {} #dictionary of objects in scene and what buttons they are connected to. They are separated by each tab. key- object name, value- array of buttons
-        self.buttons = [] #list of references to buttons according to tab
-        self.previousSelection = cmds.ls(sl=True)
+        self.buttons = [] #array of references to buttons according to tab
+        self.previousSelection = cmds.ls(sl=True) #array of last selection of objects in scene
         self.totalTabs = 0 #numbere of tabs
+        self.edit=True
 
-        self.buildUI()
+        self.buildUI() #add to UI elements to window
+
+        #update which buttons are selected/outlined each time the selection in scene is changed
         self.sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateBtnSelect()], parent = "PickerUI")
+
         self.show(dockable=True)
 
     def keyPressEvent(self, event):
@@ -65,8 +129,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             self.deleteBtns()
 
     def deleteBtns(self):
+        """
+        deletes selected buttons
+        :return: None
+        """
         if self.edit:
-            print("Deleting Selected Buttons")
+            logger.debug("Deleting Selected Buttons")
             currTab = self.tabwidget.currentWidget()
             children =currTab.children()
 
@@ -77,16 +145,16 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                             self.objects[currTab][k].remove(btn)
                         if len(self.objects[currTab][k]) ==0:
                             del(self.objects[currTab][k])
-                    print(self.objects)
-                    print("deleting: "+ str(btn))
+                    logger.debug(self.objects)
+                    logger.debug("deleting: "+ str(btn))
                     btn.deleteLater()
 
     def updateBtnSelect(self):
         """
-        updates outline of buttons if objects they are connected to have been selected or deselected
+        updates outline of buttons if objects they are connected to have been selected or deselected and checkboxes
         :return: None
         """
-        print("update buttons")
+        logger.debug("update buttons")
         currSelection = cmds.ls(selection = True)
         currTab = self.tabwidget.currentWidget()
 
@@ -102,7 +170,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
         #updated the number of selected objects for each button asociated with an object in one of the lists
         for a in added:
-            print("added "+a)
+            logger.debug("added "+a)
             if a in self.objects[currTab]:
                 for btn in self.objects[currTab][a]:
                     btn.numSel+=1 #add one to the number of objects selected in the list of connections for the button
@@ -111,11 +179,11 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                         btn.setChecked(True)
 
         for m in minus:
-            print("minus "+m)
+            logger.debug("minus "+m)
             if m in self.objects[currTab]:
                 for btn in self.objects[currTab][m]:
                     btn.numSel-=1 #subtract one to the number of objects selected in the list of connections for the button
-                    print(btn.numSel)
+                    logger.debug(btn.numSel)
                     if btn.numSel < len(btn.connection): #change outline if the number selected is less than the total number of objects connected to the button
                         btn.selected = False
                         btn.setChecked(False)
@@ -124,7 +192,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
 
         if(self.edit ==True):
-            print("checkboxes")
+            logger.debug("checkboxes")
             #updates the list of checkboxes
             self.clearLayout(self.vbox) #clear list
             sl = cmds.ls(sl = True) #get selection
@@ -145,7 +213,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             if (isinstance(c,drag.DragButton)):
                 c.updateNumSel() #update outline of button
 
+    #adds UI elements to window
     def buildUI(self):
+        """
+        adds UI elements to window
+        :return: None
+        """
         outside = QtWidgets.QVBoxLayout(self)
         self.columns = QtWidgets.QHBoxLayout(self)
         self.layout = QtWidgets.QVBoxLayout(self)
@@ -169,7 +242,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         #add second column with details
         #start with showing edit tools
         self.updateDetails("edit")
-        self.edit = True
+        #self.edit = True
 
         #edit button
         layout_btns = QtWidgets.QHBoxLayout()
@@ -201,26 +274,26 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         :return: None
         """
         data = {'tabs':{}} #dictionary storing all data
-        print("Saving File!!!!!!!!!!!!!!")
+        logger.info("Saving File!!!!!!!!!!!!!!")
         for i in range(self.tabwidget.count()):
             #add information about each tab
             tab = self.tabwidget.tabText(i)
-            print(tab)
+            logger.debug(tab)
             children =self.tabwidget.widget(i).children()
             data['tabs']["tab %d" % i] = {"name": str(tab), "buttons": {}, "image":self.tabwidget.widget(i).imageFile }
             btnNum = 1
             for w in children: #add information about each button in tab
                 if (isinstance(w,drag.DragButton)):
                     info = {"name": w.text(), "color": w.color, "x":w.x(), "y":w.y(), "connections": w.connection, "width": w.width(), "height": w.height()}
-                    print(info)
-                    print(w.connection)
+                    logger.debug(info)
+                    logger.debug(w.connection)
                     #add new button to list
                     data['tabs']["tab %d" % i]["buttons"]["button %d" % btnNum] = info
                     btnNum+=1
         outData = json.dumps(data) #create into json
-        print(outData)
+        logger.debug(outData)
         filename, type = QtWidgets.QFileDialog.getSaveFileName(self, 'Save Template',BASE_DIR,"(*.json)") #open file dialog to chose location and name
-        print("saving as: " +filename)
+        logger.info("saving as: " +filename)
         with open(filename, "w") as f:
             json.dump(data, f, indent = 4) #save json in location
 
@@ -229,12 +302,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         Opens File Dialog and loads chosen template (json) by adding tabs specified in json
         :return: None
         """
-        print("Loading File!!!!!!!!!!!")
+        logger.info("Loading File!!!!!!!!!!!")
         file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Open file',
    BASE_DIR,"Template Files(*.json)") #creates file dialog
         with open(file) as template_json:
             data = json.load(template_json) #json template data
-            print(data)
+            logger.debug(data)
             for tab in data["tabs"]:
                 #create new tab for each specified in data
                 tabInfo = data["tabs"][tab]
@@ -243,7 +316,6 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                     btnInfo = tabInfo["buttons"][btn]
                     newbtn = self.newDragBtn(btnInfo["color"], btnInfo["connections"],btnInfo["name"], newTab, btnInfo["width"], btnInfo["height"],newTab)
                     newbtn.move(btnInfo["x"],btnInfo["y"]) #move button to location on screen
-
 
     def editChange(self):
         """
@@ -283,13 +355,13 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.button_form = QtWidgets.QFormLayout()
         self.details_layout.addLayout(self.button_form)
 
-        print("update details")
+        logger.debug("update details")
         if(type == "normal"):
-            print("type normal")
+            logger.debug("type normal")
             self.restriction.setFixedWidth(0) #make column disapear
 
         if(type =="edit"):
-            print("type edit")
+            logger.debug("type edit")
             self.restriction.setFixedWidth(200) #set column width
 
             #btn preview
@@ -310,6 +382,9 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             self.color.addItem("Red")
             self.color.addItem("Green")
             self.color.addItem("Blue")
+            self.color.addItem("Yellow")
+            self.color.addItem("Orange")
+            self.color.addItem("Purple")
             self.button_form.addRow("Color:", self.color)
             #update preview button color
             self.color.currentTextChanged.connect(lambda: self.previewBtn.setColor(self.color.currentText()))
@@ -390,13 +465,17 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
             #button to choose image
             PictureBtn = QtWidgets.QPushButton("Choose Picture", self)
-            PictureBtn.clicked.connect(self.tabwidget.currentWidget().importImg)
+            PictureBtn.clicked.connect(self.setTabImage)
             self.details_layout.addWidget(PictureBtn)
             self.details_layout.addStretch()
 
             #create preview btn
             self.previewBtn = self.newConnection(btnParent=self.previewLabel)
             self.previewBtn.move((150/2)-10, (50/2)-10)
+
+    def setTabImage(self):
+        #logger.debug("current index" + str(self.tabwidget.currentIndex()))
+        self.tabwidget.currentWidget().importImg()
 
     def newTab(self, name, image =None):
         """
@@ -418,13 +497,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         :return: None
         """
         currTab = self.tabwidget.widget(index)
-        print("trying to close tab: "+ str(index))
-        print(self.objects[currTab])
-        print("total tabs: "+ str(self.totalTabs))
+        logger.debug("trying to close tab: "+ str(index))
+        logger.debug(self.objects[currTab])
+        logger.debug("total tabs: "+ str(self.totalTabs))
         self.objects.pop(currTab) #remove tab from objects dictionary
         self.tabwidget.removeTab(index) #remove tab from widget
         self.totalTabs -=1 #decrease number of total tabs
-
 
     def renameTab(self):
         """
@@ -443,10 +521,10 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         :return: None
         """
         if(box.isChecked()==False):
-            print("deselect: %s" % obj)
+            logger.debug("deselect: %s" % obj)
             cmds.select(obj, d=True) #deselect object
         else:
-            print("%s is checked" % obj)
+            logger.debug("%s is checked" % obj)
 
     def newConnection(self, btnParent = None):
         """
@@ -466,7 +544,6 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         btnName = self.nameBox.text() #button name
         return self.newDragBtn(btnColor, selected, btnName, parent, self.btnWidth.value(), self.btnHeight.value(), self.tabwidget.currentWidget())
 
-
     def newDragBtn(self, color, selected, name, parent, width, height, tabIndex):
         """
         create new draggable button and add to parent
@@ -479,11 +556,11 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         :param tabIndex: index of tab button is being added to
         :return: Draggable Button
         """
-        btn = drag.DragButton(color, selected, name ) #create new draggable button
+        btn = drag.DragButton(color, selected, self, name ) #create new draggable button
         btn.setParent(parent)
         btn.resize(width, height)
         btn.show() #show button
-        print("new button: %s" % name)
+        logger.info("new button: %s" % name)
 
         #add to objects dictionary
         if selected != None:
@@ -492,9 +569,9 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                     self.objects[tabIndex][str(i)].append(btn) #add to array of buttons
                 else:
                     self.objects[tabIndex][str(i)]=[btn] #create array of buttons
-            print(self.objects)
+            logger.debug(self.objects)
         else:
-            print("nothing is being connected to button")
+            logger.error("nothing is being connected to button")
 
         return btn
 
@@ -506,10 +583,14 @@ class imageTab(QtWidgets.QWidget):
        #  if(img == None):
        #      file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Image',
        # BASE_DIR,"Image files (*.jpg *.gif *.png)") #file dialog to choose image
-       #      print(file)
+       #      logger.debug(file)
        #      self.imageFile = file
        #  else:
-        self.imageFile = img
+        if (img ==None):
+            logger.error("no image")
+            self.imageFile = ""
+        else:
+            self.imageFile = img
         #set image
         self.image = QtWidgets.QLabel(self)
         self.image.setPixmap(QtGui.QPixmap(self.imageFile))
@@ -519,12 +600,15 @@ class imageTab(QtWidgets.QWidget):
         opens file dialog for user to choose image. Sets tab's image
         :return: None
         """
+        logger.info("import image "+ str(self))
         file,types = QtWidgets.QFileDialog.getOpenFileName(self, 'Choose Image',
    BASE_DIR,"Image files (*.jpg *.gif *.png)")
-        print(file)
+        logger.debug(file)
         self.imageFile = file
         self.image.setPixmap(QtGui.QPixmap(file))
         self.image.adjustSize()
+
+
 
 
 

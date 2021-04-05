@@ -13,7 +13,7 @@ reload(drag)
 
 logging.basicConfig()
 logger = logging.getLogger("picker")
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # Where is this script?
 SCRIPT_LOC = os.path.split(__file__)[0]
@@ -38,46 +38,27 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     a class that creates a dockable qt character picker window
     Attributes
     -----------
-    objects:
-    buttons: dragButton[]
-        array of references to buttons according to tab
-    previousSelection: Str[]
-        array of last selection of objects in scene
-    sj
-        script job that updates which buttons are selected/outlined each time the selection in scene is changed
-    edit: boolean
-        bool indicating if edit window is showing
-    tabwidget: tabsWindow
-
+    objects: {} -dictionary of objects in scene and what buttons they are connected to. They are separated by each tab. key- object name, value- array of buttons
+    buttons: dragButton[] -array of references to buttons according to tab
+    previousSelection: Str[] -array of last selection of objects in scene
+    edit: boolean -bool indicating if edit window is showing
+    tabwidget: tabsWindow -reference to window with all the tabs
 
     Methods
     -----------------
     init(parent = getMayaMainWindow())
-    keyPressEvent(event)
-        deletes selected buttons when backspace or delete key is pressed in edit mode
-    deleteBtns()
-        deletes selected buttons
-    updateBtnSelect()
-        updates outline of buttons if objects they are connected to have been selected or deselected and checkboxes
-    buildUI()
-        adds UI elements to window
-    save()
-        saves current picker layout to a json file. Creates a popup for user to choose name and place of file
-    load()
-        Opens File Dialog and loads chosen template (json) by adding tabs specified in json
-    editChange()
-        Changes mode of the picker between editing and not editing. Changes edit column and edit button text based on the current mode
-    clearLayout(layout)
-        clear all layouts and widgets in given layout
-    updateDetails(type)
-        updates details based on mode
-    state_changed(obj,box)
-        deselects object when checkbox is unchecked
-    newConnection(btnParent = None)
-        creates new draggable button connected to current selection and add it to tab
-    newDragBtn(color, selected, name, parent, width, height, tabIndex)
-        create new draggable button and add to parent
-
+    keyPressEvent(event) -deletes selected buttons when backspace or delete key is pressed in edit mode
+    deleteBtns() -deletes selected buttons
+    updateBtnSelect() -updates outline of buttons if objects they are connected to have been selected or deselected and checkboxes
+    buildUI() -adds UI elements to window
+    save() -saves current picker layout to a json file. Creates a popup for user to choose name and place of file
+    load() -Opens File Dialog and loads chosen template (json) by adding tabs specified in json
+    editChange() -Changes mode of the picker between editing and not editing. Changes edit column and edit button text based on the current mode
+    clearLayout(layout) -clear all layouts and widgets in given layout
+    updateDetails(type) -updates details based on mode
+    stateChanged(obj,box) -deselects object when checkbox is unchecked
+    newConnection(btnParent = None) -creates new draggable button connected to current selection and add it to tab
+    newDragBtn(color, selected, name, parent, width, height, tabIndex) -create new draggable button and add to parent
     """
     def __init__(self, parent = getMayaMainWindow()):
         #ensure not more than one at the same time
@@ -106,7 +87,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.buildUI() #add to UI elements to window
 
         #update which buttons are selected/outlined each time the selection in scene is changed
-        self.sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateBtnSelect()], parent = "PickerUI")
+        sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateBtnSelect()], parent = "PickerUI")
 
         self.show(dockable=True)
 
@@ -190,7 +171,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             for obj in sl: #add a checkbox for each object in selection
                 checkbox = QtWidgets.QCheckBox(obj)
                 checkbox.setChecked(True)
-                checkbox.stateChanged.connect(lambda state, o=obj, c=checkbox: self.state_changed(o, c))
+                checkbox.stateChanged.connect(lambda state, o=obj, c=checkbox: self.stateChanged(o, c))
                 self.vbox.addWidget(checkbox) #add to layout
 
     #adds UI elements to window
@@ -393,7 +374,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             for obj in sl:
                 checkbox = QtWidgets.QCheckBox(obj)
                 checkbox.setChecked(True)
-                checkbox.stateChanged.connect(lambda state, o=obj, c=checkbox: self.state_changed(o, c))
+                checkbox.stateChanged.connect(lambda state, o=obj, c=checkbox: self.stateChanged(o, c))
                 self.vbox.addWidget(checkbox)
 
             self.widget.setLayout(self.vbox)
@@ -447,13 +428,14 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             self.previewBtn = self.newConnection(btnParent=self.previewLabel)
             self.previewBtn.move((150/2)-10, (50/2)-10)
 
-    def state_changed(self, obj, box):
+    def stateChanged(self, obj, box):
         """
         deselects object when checkbox is unchecked
         :param obj: Object connected to checkbox
         :param box: checkbox
         :return: None
         """
+        logger.debug("checkbox state changed")
         if(box.isChecked()==False):
             logger.debug("deselect: %s" % obj)
             cmds.select(obj, d=True) #deselect object

@@ -43,11 +43,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         array of references to buttons according to tab
     previousSelection: Str[]
         array of last selection of objects in scene
-    totalTabs: Int
-        total number of tabs
     sj
-        script job
+        script job that updates which buttons are selected/outlined each time the selection in scene is changed
     edit: boolean
+        bool indicating if edit window is showing
+    tabwidget: tabsWindow
+
 
     Methods
     -----------------
@@ -58,8 +59,6 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         deletes selected buttons
     updateBtnSelect()
         updates outline of buttons if objects they are connected to have been selected or deselected and checkboxes
-    updateTabBtns()
-        called when tab is changed and updates button outlines of new current tab
     buildUI()
         adds UI elements to window
     save()
@@ -72,19 +71,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         clear all layouts and widgets in given layout
     updateDetails(type)
         updates details based on mode
-    setTabImage()
-    newTab(name, image)
-        Add new tab to picker with given name and image
-    closeTab(index)
-    renameTab()
-        renames current tab to be current text in name box
     state_changed(obj,box)
         deselects object when checkbox is unchecked
     newConnection(btnParent = None)
         creates new draggable button connected to current selection and add it to tab
     newDragBtn(color, selected, name, parent, width, height, tabIndex)
         create new draggable button and add to parent
-
 
     """
     def __init__(self, parent = getMayaMainWindow()):
@@ -109,8 +101,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.objects = {} #dictionary of objects in scene and what buttons they are connected to. They are separated by each tab. key- object name, value- array of buttons
         self.buttons = [] #array of references to buttons according to tab
         self.previousSelection = cmds.ls(sl=True) #array of last selection of objects in scene
-        self.totalTabs = 0 #numbere of tabs
-        self.edit=True
+        self.edit=True #start with showing edit tools
 
         self.buildUI() #add to UI elements to window
 
@@ -202,17 +193,6 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                 checkbox.stateChanged.connect(lambda state, o=obj, c=checkbox: self.state_changed(o, c))
                 self.vbox.addWidget(checkbox) #add to layout
 
-    def updateTabBtns(self):
-        """
-        called when tab is changed and updates button outlines of new current tab
-        :return: None
-        """
-        index = self.tabwidget.currentIndex()
-        children = self.tabwidget.widget(index).children()
-        for c in children:
-            if (isinstance(c,drag.DragButton)):
-                c.updateNumSel() #update outline of button
-
     #adds UI elements to window
     def buildUI(self):
         """
@@ -220,35 +200,30 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         :return: None
         """
         outside = QtWidgets.QVBoxLayout(self)
-        self.columns = QtWidgets.QHBoxLayout(self)
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.details_layout = QtWidgets.QVBoxLayout(self)
-        self.restriction = QtWidgets.QWidget()
+        columns = QtWidgets.QHBoxLayout(self)
+        layout = QtWidgets.QVBoxLayout(self)
+        self.details_layout = QtWidgets.QVBoxLayout(self) #column with edit panel
+        self.restriction = QtWidgets.QWidget() #restricts size of details_layout
         self.restriction.setLayout(self.details_layout)
         self.restriction.setFixedWidth(200)
-        self.columns.addLayout(self.layout)
-        self.columns.addWidget(self.restriction)
-        outside.addLayout(self.columns)
+        columns.addLayout(layout)
+        columns.addWidget(self.restriction)
+        outside.addLayout(columns)
 
         #tab widget
-        self.tabwidget = QtWidgets.QTabWidget(tabsClosable = True, movable = True)
-        self.layout.addWidget(self.tabwidget)
-        self.tabwidget.tabCloseRequested.connect(lambda index: self.closeTab(index))
-        self.tabwidget.currentChanged.connect(lambda index: self.updateTabBtns())
+        self.tabwidget = tabsWindow(self) #QtWidgets.QTabWidget(tabsClosable = True, movable = True)
+        layout.addWidget(self.tabwidget)
         #add base tab
-        #self.tabwidget.addTab(imageTab(img = ""), "Untitled")
-        self.newTab(name ="Untitled", image = "")
+        self.tabwidget.newTab(name ="Untitled", image = "")
 
         #add second column with details
-        #start with showing edit tools
         self.updateDetails("edit")
-        #self.edit = True
 
         #edit button
         layout_btns = QtWidgets.QHBoxLayout()
-        self.editBtn = QtWidgets.QPushButton("Stop Editing")
-        self.editBtn.clicked.connect(self.editChange)
-        layout_btns.addWidget(self.editBtn)
+        editBtn = QtWidgets.QPushButton("Stop Editing")
+        editBtn.clicked.connect(lambda: self.editChange(editBtn))
+        layout_btns.addWidget(editBtn)
 
         #save button
         saveBtn = QtWidgets.QPushButton("Save")
@@ -266,7 +241,6 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         layout_btns.addWidget(closeBtn)
 
         outside.addLayout(layout_btns) #add buttons to layout
-
 
     def save(self):
         """
@@ -311,13 +285,13 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             for tab in data["tabs"]:
                 #create new tab for each specified in data
                 tabInfo = data["tabs"][tab]
-                newTab =self.newTab(tabInfo["name"], image = tabInfo["image"]) #make tab
+                newTab =self.tabwidget.newTab(tabInfo["name"], image = tabInfo["image"]) #make tab
                 for btn in tabInfo["buttons"]: #make buttons in each tab
                     btnInfo = tabInfo["buttons"][btn]
                     newbtn = self.newDragBtn(btnInfo["color"], btnInfo["connections"],btnInfo["name"], newTab, btnInfo["width"], btnInfo["height"],newTab)
                     newbtn.move(btnInfo["x"],btnInfo["y"]) #move button to location on screen
 
-    def editChange(self):
+    def editChange(self,editBtn):
         """
         Changes mode of the picker between editing and not editing. Changes edit column and edit button text based on the current mode
         :return: None
@@ -455,63 +429,23 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             #new tab button
             createBtn = QtWidgets.QPushButton("New Tab")
             #createBtn.clicked.connect(lambda: self.tabwidget.addTab(imageTab(), self.tabnameBox.text()))
-            createBtn.clicked.connect(lambda: self.newTab(self.tabnameBox.text()))
+            createBtn.clicked.connect(lambda: self.tabwidget.newTab(self.tabnameBox.text()))
             self.details_layout.addWidget(createBtn)
 
             #rename tab button
             renameBtn = QtWidgets.QPushButton("Rename Tab")
-            renameBtn.clicked.connect(self.renameTab)
+            renameBtn.clicked.connect(self.tabwidget.renameTab)
             self.details_layout.addWidget(renameBtn)
 
             #button to choose image
             PictureBtn = QtWidgets.QPushButton("Choose Picture", self)
-            PictureBtn.clicked.connect(self.setTabImage)
+            PictureBtn.clicked.connect(self.tabwidget.setTabImage)
             self.details_layout.addWidget(PictureBtn)
             self.details_layout.addStretch()
 
             #create preview btn
             self.previewBtn = self.newConnection(btnParent=self.previewLabel)
             self.previewBtn.move((150/2)-10, (50/2)-10)
-
-    def setTabImage(self):
-        #logger.debug("current index" + str(self.tabwidget.currentIndex()))
-        self.tabwidget.currentWidget().importImg()
-
-    def newTab(self, name, image =None):
-        """
-        Add new tab to picker with given name and image
-        :param name: (str) name of tab
-        :param image: (str) location of image in computer
-        :return: new tab widget
-        """
-        newT = imageTab(image) #create widget
-        self.tabwidget.addTab(newT, name) #adds tab to tab widget
-        self.totalTabs +=1 #increase total tabs count
-        self.objects[newT]= {} #add to objects dictionary
-        return newT
-
-    def closeTab(self, index):
-        """
-        closes given tab
-        :param index: (int) index of tab to close
-        :return: None
-        """
-        currTab = self.tabwidget.widget(index)
-        logger.debug("trying to close tab: "+ str(index))
-        logger.debug(self.objects[currTab])
-        logger.debug("total tabs: "+ str(self.totalTabs))
-        self.objects.pop(currTab) #remove tab from objects dictionary
-        self.tabwidget.removeTab(index) #remove tab from widget
-        self.totalTabs -=1 #decrease number of total tabs
-
-    def renameTab(self):
-        """
-        renames current tab to be current text in name box
-        :return: None
-        """
-        tabname = self.tabnameBox.text() #new name text
-        tabIndex = self.tabwidget.currentIndex() #index of current tab
-        self.tabwidget.setTabText(tabIndex, tabname) #rename tab
 
     def state_changed(self, obj, box):
         """
@@ -610,6 +544,90 @@ class imageTab(QtWidgets.QWidget):
 
 
 
+
+class tabsWindow(QtWidgets.QTabWidget):
+    """
+    A class that creates a window with tabs
+    Attributes
+    ----------
+    baseUI: pickerBaseUI
+        reference to connected pickerBaseUI
+    totalTabs: Int
+        total number of tabs
+
+    Methods
+    ----------
+    setTabImage()
+        sets image for current tab
+    newTab(name, image)
+        Add new tab to picker with given name and image
+    closeTab(index)
+        closes tab at given index
+    renameTab()
+        renames current tab to be current text in name box
+    updateTabBtns()
+        called when tab is changed and updates button outlines of new current tab
+    """
+    def __init__(self, baseUI, *args, **kwargs):
+        super(tabsWindow,self).__init__(tabsClosable = True, movable = True,*args, **kwargs)
+        self.baseUI= baseUI
+        self.totalTabs = 0 #number of tabs
+        self.tabCloseRequested.connect(lambda index: self.closeTab(index)) #closes tab
+        self.currentChanged.connect(lambda index: self.updateTabBtns()) #updates btns in new current window
+
+    def renameTab(self):
+        """
+        renames current tab to be current text in name box
+        :return: None
+        """
+        tabname = self.baseUI.tabnameBox.text() #new name text
+        tabIndex = self.currentIndex() #index of current tab
+        self.setTabText(tabIndex, tabname) #rename tab
+
+    def closeTab(self, index):
+        """
+        closes given tab
+        :param index: (int) index of tab to close
+        :return: None
+        """
+        currTab = self.widget(index)
+        logger.debug("trying to close tab: "+ str(index))
+        logger.debug(self.baseUI.objects[currTab])
+        logger.debug("total tabs: "+ str(self.totalTabs))
+        self.baseUI.objects.pop(currTab) #remove tab from objects dictionary
+        self.removeTab(index) #remove tab from widget
+        self.totalTabs -=1 #decrease number of total tabs
+
+    def setTabImage(self):
+        #logger.debug("current index" + str(self.tabwidget.currentIndex()))
+        self.currentWidget().importImg()
+
+    def newTab(self, name, image =None):
+        """
+        Add new tab to picker with given name and image
+        :param name: (str) name of tab
+        :param image: (str) location of image in computer
+        :return: new tab widget
+        """
+        newT = imageTab(image) #create widget
+        self.addTab(newT, name) #adds tab to tab widget
+        self.totalTabs +=1 #increase total tabs count
+        self.baseUI.objects[newT]= {} #add to objects dictionary
+        return newT
+
+    def updateTabBtns(self):
+        """
+        called when tab is changed and updates button outlines of new current tab
+        :return: None
+        """
+        index = self.currentIndex()
+        try:
+            children = self.widget(index).children()
+        except:
+            logger.debug("UpdateTabBtns: tab has no buttons")
+        for c in children:
+            if (isinstance(c,drag.DragButton)):
+                c.updateNumSel() #update outline of button
 
 
 

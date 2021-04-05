@@ -16,6 +16,8 @@ class DragButton(QtWidgets.QPushButton):
         The color of the button
     selected: Boolean
         True if all objects in scene are selected
+    parentUI: imageTab
+        reference to the parent imageTab
     Methods
     -----------------
     init (color, selection, baseUI)

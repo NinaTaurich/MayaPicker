@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import maya.cmds as cmds
 from PySide2 import QtWidgets, QtCore, QtGui
 import logging
@@ -8,31 +9,21 @@ class DragButton(QtWidgets.QPushButton):
     A class creating a draggable button
     Attributes
     -----------
-    connection: str[]
-        list of objects that are connected to the button
-    numSel: Int
-        number of objects in connections list that are currently selected in the scene
-    color: Str
-        The color of the button
-    selected: Boolean
-        True if all objects in scene are selected
-    parentUI: imageTab
-        reference to the parent imageTab
+    connection: str[] -list of objects that are connected to the button
+    numSel: Int -number of objects in connections list that are currently selected in the scene
+    color: Str -The color of the button
+    selected: Boolean -True if all objects in scene are selected
+    parentUI: imageTab -reference to the parent imageTab
+
     Methods
     -----------------
     init (color, selection, baseUI)
-    updateNumSel()
-        updates numSel variable to be the number of selected objects that are within the list of connected objects
-    setColor(newColor)
-        Sets color of button
-    selectList()
-        selects the objects in list of connected objects
-    mousePressEvent(event)
-        if button is clicked set start location
-    mouseMoveEvent(event)
-        move button with mouse
-    mouseReleaseEvent (event)
-        release button
+    updateNumSel() -updates numSel variable to be the number of selected objects that are within the list of connected objects
+    setColor(newColor) -Sets color of button
+    selectList() -selects the objects in list of connected objects
+    mousePressEvent(event) -if button is clicked set start location
+    mouseMoveEvent(event) -move button with mouse
+    mouseReleaseEvent (event)- release button
     """
     def __init__(self, color, selection, baseUI, *args, **kwargs):
         super(DragButton,self).__init__(*args, **kwargs)

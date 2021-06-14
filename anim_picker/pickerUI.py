@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import maya.cmds as cmds
 from PySide2 import QtWidgets, QtCore, QtGui
 from maya import OpenMayaUI as omui
@@ -9,7 +10,8 @@ import logging
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
 from MayaPicker.anim_picker import dragButton as drag
-reload(drag)
+from six.moves import range
+# reload(drag)
 
 logging.basicConfig()
 logger = logging.getLogger("picker")

@@ -10,8 +10,13 @@ import logging
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
 from MayaPicker.anim_picker import dragButton as drag
+from MayaPicker.anim_picker.IK_FK_Matching import matchingSetupWindow
+from MayaPicker.anim_picker.IK_FK_Matching import IK_FKMatchingController
 from six.moves import range
-# reload(drag)
+from six.moves import reload_module
+reload_module(drag)
+reload_module(IK_FKMatchingController)
+
 
 logging.basicConfig()
 logger = logging.getLogger("picker")
@@ -27,7 +32,7 @@ def getMayaMainWindow():
     :return: maya main window as a python object
     """
     win = omui.MQtUtil_mainWindow()
-    ptr = wrapInstance(long(win), QtWidgets.QMainWindow)
+    ptr = wrapInstance(int(win), QtWidgets.QMainWindow)
     return ptr
 
 def deleteControl(control):
@@ -85,6 +90,8 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.buttons = [] #array of references to buttons according to tab
         self.previousSelection = cmds.ls(sl=True) #array of last selection of objects in scene
         self.edit=True #start with showing edit tools
+
+        self.IK_FK_Controller = IK_FKMatchingController.MatchingController(False)
 
         self.buildUI() #add to UI elements to window
 
@@ -424,11 +431,35 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             PictureBtn = QtWidgets.QPushButton("Choose Picture", self)
             PictureBtn.clicked.connect(self.tabwidget.setTabImage)
             self.details_layout.addWidget(PictureBtn)
+
+            #button start matching mode
+            self.MatchingModeBtn = QtWidgets.QPushButton("Matching Mode", self)
+            self.MatchingModeBtn.clicked.connect(self.startMatchingMode)
+            self.MatchingModeBtn.setCheckable(True)
+            self.details_layout.addWidget(self.MatchingModeBtn)
+
+            IKFKBtn = QtWidgets.QPushButton("IK to FK", self)
+            IKFKBtn.clicked.connect(self.IK_FK_Controller.matchIkFkWin)
+            self.details_layout.addWidget(IKFKBtn)
+
+            FKIKBtn = QtWidgets.QPushButton("FK to IK", self)
+            FKIKBtn.clicked.connect(self.IK_FK_Controller.matchFkIkWin)
+            self.details_layout.addWidget(FKIKBtn)
+
             self.details_layout.addStretch()
 
             #create preview btn
             self.previewBtn = self.newConnection(btnParent=self.previewLabel)
             self.previewBtn.move((150/2)-10, (50/2)-10)
+
+    def startMatchingMode(self):
+        if(not self.MatchingModeBtn.isChecked()):
+            logger.debug("end matching mode")
+            self.IK_FK_Controller.turnOff()
+        else:
+            logger.debug("start matching mode")
+            self.IK_FK_Controller.openSetupWindow()
+            # self.matchingWindow = matchingSetupWindow.matchingSetupWindowUI()
 
     def stateChanged(self, obj, box):
         """

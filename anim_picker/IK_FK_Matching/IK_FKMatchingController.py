@@ -15,12 +15,16 @@ debug = False
 debugZero = False
 
 class MatchingController:
-    def __init__(self, ifOnInit):
+    def __init__(self, ifOnInit, parent):
         global win
         win ='ikfkswitchUI_'
 
         self.ifOn = ifOnInit
+        self.limb = {}
+        self.switchAttr = ""
         self.arm= []
+        self.fakes = []
+        self.parent = parent
 
     def on_keyframe_set(keyframes, client_data):
         print("keyframe set")
@@ -29,119 +33,152 @@ class MatchingController:
     def openSetupWindow(self):
         self.matchingWindow = matchingSetupWindow.matchingSetupWindowUI(self)
 
+    def updateMode(self):
+        """
+        run when object selected. Switches between ik and fk and matches when one of the ik/fk controls is selected
+        :return:
+        """
+        currSelection = cmds.ls(selection = True) #current selection
+
+        for key in self.limb.keys():
+            #if mode is opposite
+            switchCtrl = self.limb[key]['switchCtrl']
+            switchAttr = self.limb[key]['switchAttr']
+            switch = '%s.%s'%(switchCtrl, switchAttr)
+            if(cmds.getAttr(switch)== 1.0):
+                #in fk mode
+                #check if selection contains an ik control
+                if((self.limb[key]["ikpv"] in currSelection) or (self.limb[key]["ikwrist"] in currSelection)):
+                    self.matchFkIkWin(key) #match fk to ik
+                    logger.debug("switch to ik")
+                    self.switchIkFK(0.0,key) #switch to ik
+            else:
+                #in ik mode
+                #check if selection contains an fk control
+                if((self.limb[key]["fkwrist"] in currSelection) or (self.limb[key]["fkellbow"] in currSelection) or (self.limb[key]["fkshldr"] in currSelection)):
+                    self.matchIkFkWin(key) #match ik to fk
+                    logger.debug("print to fk")
+                    self.switchIkFK(1.0,key) #switch to fk
+
     def turnOn(self):
+        """
+        sets up matching mode
+        :return: None
+        """
         logger.debug("turn on")
         self.ifOn = True
-        self.matchingWindow.close()
+        self.matchingWindow.close() #close setup window
 
+        # #create fakes
+        # self.fakes.append(self.duplicateControl(self.arm[3]))
+        # self.fakes.append(self.duplicateControl(self.arm[2]))
+        # # fk_wristFake = cmds.duplicate(self.arm[2], parentOnly=1, n='fk_wristFake')[0]
+        # # unlockAttributes([fk_wristFake])
+
+        #start script job to check when ik/fk controls selected
+        self.sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateMode()], parent ="PickerUI")
+
+        #callback for keyframe
         # self.keyframe_callback = OpenMayaAnim.MAnimMessage.addAnimKeyframeEditedCallback(self.on_keyframe_set)
         logger.debug("make callback")
 
     def turnOff(self):
+        """
+        stops matching mode
+        :return: None
+        """
+        logger.debug("turn off")
         self.ifOn= False
-        self.matchingWindow.close()
+        self.parent.MatchingModeBtn.setChecked(False) #make matching button unchecked/not selected
 
+        #kill script job
+        logger.debug("kill ik fk script job")
+        if hasattr(self,"sj"):
+            cmds.scriptJob(kill=self.sj)
 
+        #delete fakes
+        # for control in self.fakes:
+        #     cmds.delete(control)
+
+        #close setup window if still open
+        if(self.matchingWindow):
+            self.matchingWindow.close()
+
+        #remove keyframe callback
         # OpenMaya.MMessage.removeCallback(self.keyframe_callback)
         logger.debug("delete callback")
 
-    def matchIkFkWin(self):
-        fkshldr = self.arm[0]
-        fkellbow= self.arm[1]
-        fkwrist= self.arm[2]
-        ikpv = self.arm[3]
-        ikwrist = self.arm[4]
-        switchCtrl = self.arm[5]
+    def duplicateControl(self, object):
+        """
+        create a fake control from given control
+        :param object: control to duplicate
+        :return:
+        """
+        fake = object +"fake"
+        cmds.duplicate(object, rr=True, n=fake)[0]
+        unlockAttributes([fake])
+        cmds.parent(fake,w=True, a=True)
+        cmds.parentConstraint(object, fake, mo=True, weight = 1)
+        return fake
 
-        #TODO: change to be chosen
-        switchAttr= 'IK_FK'
+    def switchIkFK(self, ikfkValue, key):
+        if(self.ifOn):
+            switchCtrl = self.limb[key]["switchCtrl"]
+            switchAttr = "IK_FK"
+            switch = '%s.%s'%(switchCtrl, switchAttr)
+            cmds.setAttr(switch, ikfkValue)
 
-        ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=1, switchAttrRange=1, rotOffset=[0,0,0], side='L', limb='arm', guessUp=1, bendKneeAxis='+X')
-
-        # pm.select(switchCtrl)
-
-    def matchFkIkWin(self):
-        fkshldr = self.arm[0]
-        fkellbow= self.arm[1]
-        fkwrist= self.arm[2]
-        ikpv = self.arm[3]
-        ikwrist = self.arm[4]
-        switchCtrl = self.arm[5]
-
-        #TODO: change to be chosen
-        switchAttr= 'IK_FK'
-
-        fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=1, switchAttrRange=1, rotOffset=[0,0,0], side='L', limb='arm')
-
-        # pm.select(switchCtrl)
-
-
-    def saveIKFkCtrls(self, limb, side, fkshldr, fkellbow, fkwrist, ikpv, ikwrist, switchCtrl, switchAttr, switch0isfk, switchAttrRange, rotOffset, bendKneeAxis):
-        '''
-        limb = 'arm'/'leg
-        side = 'R'/'L'
-        '''
-        sel = pm.selected()
-        ns = fkwrist.split(':')[0] if len(fkwrist.split(':')) > 1 else ''
-        storenode = ns + '__' + side + '_' + limb + '_IKFKSTORE'
-        logger.info('Storenode is %s'%storenode)
-        if pm.objExists(storenode) == False:
-            storenode = pm.createNode('transform', n=storenode)
-        else:
-            message =  'Do you want to replace existing store node?'
-            confirm = pm.confirmDialog( title='Replace existing', message=message, button=['Yes','No'],
-                              defaultButton='Yes', cancelButton='No', dismissString='No' )
-            if confirm == 'Yes':
-                logger.info('deleting existing store node')
-                pm.delete(storenode)
-                storenode = pm.createNode('transform', n=storenode)
-            else:
-                pm.select(sel)
-                return
-
-        storenode = pm.PyNode(storenode)
-        storedic = {'fkwrist': fkwrist, 'fkellbow': fkellbow, 'fkshldr':fkshldr, 'ikwrist':ikwrist, 'ikpv':ikpv, 'switchCtrl':switchCtrl, 'switchAttr':switchAttr, 'switch0isfk':switch0isfk, 'attrRange':switchAttrRange, 'rotOffset':rotOffset, 'side':side, 'bendKneeAxis':bendKneeAxis}
-        for attrName, value in storedic.items():
-            pm.addAttr(storenode, ln=attrName, dt='string', k=1)
-            storenode.attr(attrName).set('%s'%value)
-
-        pm.select(sel)
-        return storenode
-
-    def loadIkFkCtrl(self, ns, limb, side):
-        '''
-        limb = 'arm'/'leg
-        side = 'R'/'L'
-        '''
-
-        storenodeRegex = ns + '__' + side + '_' + limb + '_IKFKSTORE'
-        logger.info('loading %s '%storenodeRegex)
-        storenode = pm.ls(storenodeRegex)
-        if len(storenode) == 0:
-            logger.info( 'No storenode found'           )
-            return {}
-        else:
-            storenode = storenode[0]
-        ns = storenode.split('__')[0]
-        storenode = ns + '__' + side + '_' + limb + '_IKFKSTORE'
-
-        if pm.objExists(storenode) == False:
-            return {}
-        storenode = pm.PyNode(storenode)
-
-        storedic = {'fkwrist': '', 'fkellbow': '', 'fkshldr':'', 'ikwrist':'', 'ikpv':'', 'switchCtrl':'', 'switchAttr':'', 'switch0isfk':'', 'attrRange':'', 'rotOffset':'', 'bendKneeAxis':'+X'}
-        for attrName, value in storedic.items():
-            try:
-                storedic[attrName] = storenode.attr(attrName).get()
-            except:
-                pm.warning('Missing Attribute %s. Please Save Store Node again.'%attrName)
-                storedic[attrName] = value
-
-        logger.info('StoreNode found is %s'%storedic)
-        return storedic
+            #switch around fakes
+            # if(ikfkValue == 0.0): #change to ik
+            #     #make fk disapear
+            #     cmds.hide(self.fakes[0])
+            #     cmds.showHidden(self.fakes[1])
+            # if(ikfkValue == 1.0): #change to fk
+            #     #make ik disapear
+            #     cmds.hide(self.fakes[1])
+            #     cmds.showHidden(self.fakes[0])
 
 
+    def matchIkFkWin(self, key):
+        """
+        match ik to fk with entered info
+        :param key: the limb being matched
+        :return: None
+        """
+        fkshldr = self.limb[key]["fkshldr"]
+        fkellbow= self.limb[key]["fkellbow"]
+        fkwrist= self.limb[key]["fkwrist"]
+        ikpv = self.limb[key]["ikpv"]
+        ikwrist = self.limb[key]["ikwrist"]
+        switchCtrl = self.limb[key]["switchCtrl"]
+        switchAttr = self.limb[key]["switchAttr"]
+        side, limb = key.split("_")
+        switch0isfk = 0
 
+        ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=switch0isfk, switchAttrRange=1, rotOffset=[0,0,0], side=side, limb=limb, guessUp=1, bendKneeAxis='+X')
+
+    def matchFkIkWin(self, key):
+        """
+        match fk to ik with entered info
+        :param key: the limb being matched
+        :return: None
+        """
+        fkshldr = self.limb[key]["fkshldr"]
+        fkellbow= self.limb[key]["fkellbow"]
+        fkwrist= self.limb[key]["fkwrist"]
+        ikpv = self.limb[key]["ikpv"]
+        ikwrist = self.limb[key]["ikwrist"]
+        switchCtrl = self.limb[key]["switchCtrl"]
+        switchAttr = self.limb[key]["switchAttr"]
+        side, limb = key.split("_")
+        switch0isfk=0
+
+        fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=switch0isfk, switchAttrRange=1, rotOffset=[0,0,0], side=side, limb=limb)
+
+
+"""
+The code below are copyright of Monika Gelbmann 2021 and released under the MIT license
+"""
 def ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=1, switchAttrRange=1, rotOffset=[0,0,0], side='R', limb='arm', guessUp=1, bendKneeAxis='+X'):
     '''
     Snap fk to ik controls by building ik joint form fk control position and lining up to ik
@@ -158,8 +195,8 @@ def ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
     snapGrp = pm.createNode('transform', name='snapGrp')
 
     # store if keyframe on ik attribute or not:
-    ikwrist_key, ikpv_key = pm.keyframe(ikwrist, q=1, t=pm.currentTime()),\
-                                             pm.keyframe(ikpv, q=1, t=pm.currentTime())
+    ikwrist_key = pm.keyframe(ikwrist, q=1, t=pm.currentTime())
+    ikpv_key = pm.keyframe(ikpv, q=1, t=pm.currentTime())
 
     logger.info( 'matching. switch attr range is %s'%switchAttrRange           )
     # go to fk mode to match correct position (some riggs use same foot ctrl for ik and fk)
@@ -623,3 +660,8 @@ def unlockAttributes(objects, attributes=['translate','translateX','translateY',
         for a in attributes:
             obj.attr(a).unlock()
             pm.setAttr((obj + '.' + a), lock=False, k=True)
+
+
+
+
+

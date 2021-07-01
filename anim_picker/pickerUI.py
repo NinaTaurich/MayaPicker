@@ -91,7 +91,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.previousSelection = cmds.ls(sl=True) #array of last selection of objects in scene
         self.edit=True #start with showing edit tools
 
-        self.IK_FK_Controller = IK_FKMatchingController.MatchingController(False)
+        self.IK_FK_Controller = IK_FKMatchingController.MatchingController(False, self)
 
         self.buildUI() #add to UI elements to window
 
@@ -437,14 +437,6 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             self.MatchingModeBtn.clicked.connect(self.startMatchingMode)
             self.MatchingModeBtn.setCheckable(True)
             self.details_layout.addWidget(self.MatchingModeBtn)
-
-            IKFKBtn = QtWidgets.QPushButton("IK to FK", self)
-            IKFKBtn.clicked.connect(self.IK_FK_Controller.matchIkFkWin)
-            self.details_layout.addWidget(IKFKBtn)
-
-            FKIKBtn = QtWidgets.QPushButton("FK to IK", self)
-            FKIKBtn.clicked.connect(self.IK_FK_Controller.matchFkIkWin)
-            self.details_layout.addWidget(FKIKBtn)
 
             self.details_layout.addStretch()
 

@@ -26,9 +26,38 @@ class MatchingController:
         self.fakes = []
         self.parent = parent
 
-    def on_keyframe_set(keyframes, client_data):
-        print("keyframe set")
-        cmds.setKeyframe("RocketGirl_Rig_v1_6:LeftForeArm_FK_CTRL")
+    def on_keyframe_set(self, keyframes, client_data):
+        """
+        run each time a keyframe is set.
+        if setting a keyframe on an ik/fk limb then matches ik/fk and keys all controls
+        :param keyframes:
+        :param client_data:
+        :return: None
+        """
+        currSelection = cmds.ls(selection = True) #current selection
+        #check if setting a keyframe on any of the limbs
+        for key in self.limb.keys():
+            for obj in self.limb[key].values():
+                if obj in currSelection:
+                    switchCtrl = self.limb[key]['switchCtrl']
+                    switchAttr = self.limb[key]['switchAttr']
+                    switch = '%s.%s'%(switchCtrl, switchAttr)
+                    if(cmds.getAttr(switch)== 1.0):
+                        #in fk mode
+                        self.matchFkIkWin(key) #match ik to fk
+
+                    else:
+                        #in ik mode
+                        self.matchIkFkWin(key) #match fk to ik
+                    logger.debug("keying "+key)
+                    #set keyframe on all fk and ik controls
+                    cmds.setKeyframe(self.limb[key]["ikpv"])
+                    cmds.setKeyframe(self.limb[key]["ikwrist"])
+                    cmds.setKeyframe(self.limb[key]["fkwrist"])
+                    cmds.setKeyframe(self.limb[key]["fkellbow"])
+                    cmds.setKeyframe(self.limb[key]["fkshldr"])
+                    break
+
 
     def openSetupWindow(self):
         self.matchingWindow = matchingSetupWindow.matchingSetupWindowUI(self)
@@ -67,6 +96,10 @@ class MatchingController:
         """
         logger.debug("turn on")
         self.ifOn = True
+
+        self.parent.MatchingModeBtn.setChecked(True) #make matching button unchecked/not selected
+        self.parent.MatchingModeBtn.setText("Matching Mode: ON")
+
         self.matchingWindow.close() #close setup window
 
         # #create fakes
@@ -79,7 +112,7 @@ class MatchingController:
         self.sj = cmds.scriptJob(event= ["SelectionChanged", lambda: self.updateMode()], parent ="PickerUI")
 
         #callback for keyframe
-        # self.keyframe_callback = OpenMayaAnim.MAnimMessage.addAnimKeyframeEditedCallback(self.on_keyframe_set)
+        self.keyframe_callback = OpenMayaAnim.MAnimMessage.addAnimKeyframeEditedCallback(self.on_keyframe_set)
         logger.debug("make callback")
 
     def turnOff(self):
@@ -90,23 +123,26 @@ class MatchingController:
         logger.debug("turn off")
         self.ifOn= False
         self.parent.MatchingModeBtn.setChecked(False) #make matching button unchecked/not selected
+        self.parent.MatchingModeBtn.setText("Matching Mode: OFF")
 
         #kill script job
         logger.debug("kill ik fk script job")
         if hasattr(self,"sj"):
             cmds.scriptJob(kill=self.sj)
 
+        #remove keyframe callback
+        om.MMessage.removeCallback(self.keyframe_callback)
+        logger.debug("delete callback")
+
         #delete fakes
         # for control in self.fakes:
         #     cmds.delete(control)
 
         #close setup window if still open
-        if(self.matchingWindow):
+        try:
             self.matchingWindow.close()
-
-        #remove keyframe callback
-        # OpenMaya.MMessage.removeCallback(self.keyframe_callback)
-        logger.debug("delete callback")
+        except:
+            logger.debug("matching window already closed")
 
     def duplicateControl(self, object):
         """
@@ -155,7 +191,11 @@ class MatchingController:
         side, limb = key.split("_")
         switch0isfk = 0
 
+        selectedBefore = cmds.ls(selection = True) #current selection
         ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=switch0isfk, switchAttrRange=1, rotOffset=[0,0,0], side=side, limb=limb, guessUp=1, bendKneeAxis='+X')
+        #select everything again
+        for o in selectedBefore:
+            cmds.select(o)
 
     def matchFkIkWin(self, key):
         """
@@ -173,20 +213,23 @@ class MatchingController:
         side, limb = key.split("_")
         switch0isfk=0
 
+        selectedBefore = cmds.ls(selection = True) #current selection
         fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=switch0isfk, switchAttrRange=1, rotOffset=[0,0,0], side=side, limb=limb)
-
+        #select everything again
+        for o in selectedBefore:
+            cmds.select(o)
 
 """
 The code below are copyright of Monika Gelbmann 2021 and released under the MIT license
 """
 def ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=1, switchAttrRange=1, rotOffset=[0,0,0], side='R', limb='arm', guessUp=1, bendKneeAxis='+X'):
     '''
-    Snap fk to ik controls by building ik joint form fk control position and lining up to ik
+    Snap fk to ik controls by building ik joint from fk control position and lining up to ik
     Args:
     Returns:
 
     '''
-    print(fkwrist)
+
     ns = fkwrist.split(':')[0]
     switch = '%s.%s'%(switchCtrl, switchAttr)
     clist = []
@@ -390,7 +433,7 @@ def ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
     try: snap(fkwrist_loc, fkwrist, pos=1)
     except: pass
 
-    for ctrl in [fkshldr, fkellbow, fkwrist]:
+    for ctrl in [ikwrist, ikpv, fkshldr, fkellbow, fkwrist]:
         if len(pm.keyframe(ctrl, q=1))>0:
             pm.setKeyframe(ctrl, t=pm.currentTime(), s=0)
 
@@ -405,6 +448,7 @@ def ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
         pm.delete(clist)
         pm.delete(snapGrp)
 
+    print("fk controls matched to ik and switch to ik")
     # clean up eventually created keyframe on ik ctrl on switch frame
     if len(ikwrist_key) == 0:
         try : pm.cutKey(ikwrist, t=pm.currentTime())
@@ -413,9 +457,9 @@ def ikfkMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
         try : pm.cutKey(ikpv, t=pm.currentTime())
         except: pass
 
-    # set to ik
-    if switch0isfk == 0: pm.setAttr(switch, 1)
-    else: pm.setAttr(switch, 0)
+    # # set to ik
+    # if switch0isfk == 0: pm.setAttr(switch, 1)
+    # else: pm.setAttr(switch, 0)
 
 def fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr, switch0isfk=1, switchAttrRange=1, rotOffset=[0,0,0], side='R', limb='arm'):
 	'''
@@ -434,6 +478,7 @@ def fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
 	Returns:
 
 	'''
+
 	switch = '%s.%s'%(switchCtrl, switchAttr)
 
 	if pm.objExists('snapGrp'): pm.delete('snapGrp')
@@ -516,7 +561,7 @@ def fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
 	pm.select([fkshldr, fkellbow, fkwrist])
 	pm.parent(pvLoc, snapGrp)
 
-	# snap ik
+	# # snap ik
 	for ctrl in [ikwrist, ikpv]:
 		if len(pm.keyframe(ctrl, q=1))>0:
 			pm.cutKey(ctrl, t=pm.currentTime())
@@ -524,7 +569,7 @@ def fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
 	snap(ik_wristDupOffset, ikwrist)
 	snap(pvLoc, ikpv, pos=1, rot=0)
 
-	for ctrl in [ikwrist, ikpv]:
+	for ctrl in [ikwrist, ikpv, fkshldr, fkellbow, fkwrist]:
 		if len(pm.keyframe(ctrl, q=1))>0:
 			pm.setKeyframe(ctrl, t=pm.currentTime(), s=0)
 
@@ -551,9 +596,9 @@ def fkikMatch(fkwrist, fkellbow, fkshldr, ikwrist, ikpv, switchCtrl, switchAttr,
 		except: pass
 
 
-	# go to ik mode
-	if switch0isfk == 0:      pm.setAttr(switch, 0)
-	else:   pm.setAttr(switch, switchAttrRange)
+	# # go to ik mode
+	# if switch0isfk == 0:      pm.setAttr(switch, 0)
+	# else:   pm.setAttr(switch, switchAttrRange)
 
 	pm.dgdirty([ikwrist, ikpv])
 	pm.dgdirty([fkwrist, fkellbow, fkshldr])

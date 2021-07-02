@@ -109,6 +109,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         if (event.key() == QtCore.Qt.Key_Backspace or event.key() == QtCore.Qt.Key_Delete):
             self.deleteBtns()
 
+    def closeEvent(self, event):
+        logger.debug("closing picker")
+        if(self.IK_FK_Controller.ifOn):
+            self.IK_FK_Controller.turnOff()
+        self.close()
+
     def deleteBtns(self):
         """
         deletes selected buttons
@@ -227,7 +233,7 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
         #close button
         closeBtn = QtWidgets.QPushButton('Close')
-        closeBtn.clicked.connect(self.close)
+        closeBtn.clicked.connect(self.closeEvent)
         layout_btns.addWidget(closeBtn)
 
         outside.addLayout(layout_btns) #add buttons to layout
@@ -436,6 +442,12 @@ class pickerBaseUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             self.MatchingModeBtn = QtWidgets.QPushButton("Matching Mode", self)
             self.MatchingModeBtn.clicked.connect(self.startMatchingMode)
             self.MatchingModeBtn.setCheckable(True)
+            if(self.IK_FK_Controller.ifOn):
+                self.MatchingModeBtn.setChecked(True)
+                self.MatchingModeBtn.setText("Matching Mode: ON")
+            else:
+                self.MatchingModeBtn.setChecked(False)
+                self.MatchingModeBtn.setText("Matching Mode: OFF")
             self.details_layout.addWidget(self.MatchingModeBtn)
 
             self.details_layout.addStretch()
